@@ -1,0 +1,16 @@
+{
+  "total_rows": 39709,
+  "drop_threshold": 0.7,
+  "dropped_columns_count": 7,
+  "dropped_columns": [
+    "GM",
+    "G",
+    "spec_T",
+    "two_body",
+    "spec_B",
+    "n_del_obs_used",
+    "n_dop_obs_used"
+  ],
+  "median_albedo_used": 0.137,
+  "estimated_diameter_count": 38461
+}
