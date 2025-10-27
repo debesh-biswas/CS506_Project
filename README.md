@@ -39,9 +39,8 @@ Ultimately, the project aims to produce a **predictive model** and an **interact
 
 ## 1. Data Overview  
 
-**Data Sources:**  
-- **NASA NeoWs API:** Provides orbital parameters, size estimates, and hazard flags.  
-- **JPL Small-Body Database (SBDB):** Contains precise orbital elements, physical characteristics, and close-approach data.  
+**Data Source:**  
+- **NASA JPL**
 - **Link** : [Small-Body Database Query](https://ssd.jpl.nasa.gov/tools/sbdb_query.html)
 
 **Planned Dataset Size:** Approximately **40,000** NEOs spanning the last decade.  
