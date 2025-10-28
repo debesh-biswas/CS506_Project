@@ -16,10 +16,10 @@
 Near-Earth Objects (NEOs) represent a potential hazard to Earth, and understanding their orbital and physical characteristics is vital to assessing risk.  
 This project builds a data science pipeline to collect, process, and model asteroid data from NASA and JPL datasets to predict whether an object is hazardous.  
 
-Our workflow includes data collection through NASA’s **NeoWs API** and JPL’s **Small-Body Database (SBDB)**, followed by cleaning, missing value handling, feature engineering, visualization, and modeling.  
+Our workflow includes data collection through NASA JPL’s **Small-Body Database (SBDB)**, followed by cleaning, missing value handling, feature engineering, visualization, and modeling.  
 We have developed preliminary scripts and notebooks for each step of the process. Early results show meaningful feature relationships such as the correlation between MOID (Minimum Orbit Intersection Distance), asteroid size, and hazard probability.  
 
-Ultimately, the project aims to produce a **predictive model** and an **interactive dashboard** to visualize asteroid risks in a user-friendly way.
+Ultimately, the project aims to produce a **predictive model**.
 
 ---
 
@@ -39,8 +39,7 @@ Ultimately, the project aims to produce a **predictive model** and an **interact
 
 ## 1. Data Overview  
 
-**Data Source:**  
-- **NASA JPL**
+**Data Source:** NASA JPL
 - **Link** : [Small-Body Database Query](https://ssd.jpl.nasa.gov/tools/sbdb_query.html)
 
 **Planned Dataset Size:** Approximately **40,000** NEOs spanning the last decade.  
