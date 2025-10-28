@@ -609,7 +609,7 @@ Each script or notebook corresponds to a distinct stage of the pipeline and shou
 
 5. **Model Training and Evaluation**  
    Open `Data_Modelling.ipynb` and run all cells.  
-   This trains multiple models (Logistic Regression, Random Forest, XGBoost) and outputs performance metrics and plots.
+   This trains Random Forest and outputs performance metrics and plots.
 
 ---
 
