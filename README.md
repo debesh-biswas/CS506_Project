@@ -16,10 +16,9 @@
 Near-Earth Objects (NEOs) represent a potential hazard to Earth, and understanding their orbital and physical characteristics is vital to assessing risk.  
 This project builds a data science pipeline to collect, process, and model asteroid data from NASA and JPL datasets to predict whether an object is hazardous.  
 
-Our workflow includes data collection through NASA JPL’s **Small-Body Database (SBDB)**, followed by cleaning, missing value handling, feature engineering, visualization, and modeling.  
-We have developed preliminary scripts and notebooks for each step of the process. Early results show meaningful feature relationships such as the correlation between MOID (Minimum Orbit Intersection Distance), asteroid size, and hazard probability.  
+Our initial workflow (as documented during the midterm) consisted of structured data collection from NASA JPL’s Small-Body Database (SBDB), followed by extensive preprocessing: cleaning, handling missing values, feature engineering, exploratory visualization, and baseline modeling. Early experiments revealed meaningful feature relationships, most notably the interaction between MOID, asteroid size, orbital parameters, and hazard labels indicating that the data contained usable predictive signal.
 
-Ultimately, the project aims to produce a **predictive model**.
+However, by the time we reached the final phase of the project, it became clear that our preliminary models were overfitting. We identified why our early models were overfitting. Through a series of investigations, we discovered issues such as data leakage, class imbalance, and overly complex model configurations. After correcting these, we were able to develop a more stable and reliable predictive model for identifying potentially hazardous asteroids.
 
 ---
 
@@ -30,10 +29,10 @@ Ultimately, the project aims to produce a **predictive model**.
    - Cleaning  
    - Handling Missing Data  
    - Feature Engineering  
-4. Preliminary Visualizations  
-5. Preliminary Modeling  
-6. Preliminary Results  
-7. Reproducibility and How to Run  
+4. Data Visualizations  
+5. Data Modeling
+6. Results
+7. Reproducibility and How to Run
 
 ---
 
@@ -44,8 +43,6 @@ Ultimately, the project aims to produce a **predictive model**.
 
 **Planned Dataset Size:** Approximately **40,000** NEOs spanning the last decade.  
 The combined dataset captures orbital parameters (semi-major axis, eccentricity, inclination, perihelion, aphelion), physical properties (absolute magnitude, albedo, estimated diameter), and close-approach information (relative velocity, distance).
-
-**Objective:** To merge these sources into a unified dataset that supports supervised learning for hazard classification.
 
 ---
 
@@ -341,242 +338,161 @@ Comprehensive visual understanding of the dataset’s structure, feature distrib
 
 ---
 
-### Step 5 – Data Modeling (`Data_Modelling.ipynb`)
+## 5. Data Modeling — `Data_Modelling Final.ipynb`
 
-This stage trains and evaluates predictive models to classify Near-Earth Objects (NEOs) as **hazardous** or **non-hazardous** using the engineered dataset `neo_processed.csv`.  
-The notebook progresses from baseline linear models to a tuned **Random Forest** ensemble, comparing their performance across standard classification metrics.
+We finalized modeling with a strict focus on eliminating leakage, validating NASA’s rule, and stabilizing performance. This supersedes the midterm modeling.
 
----
-
-#### **Modeling Workflow**
-
-1. **Data Preparation**
-   - Load the processed dataset `neo_processed.csv`.
-   - Verify and select the appropriate target column (`hazardous_label` or equivalent).
-   - Split data into **train/test sets (80/20)** using stratified sampling to preserve class balance.
-   - Fill missing numeric values with column medians and apply one-hot encoding to categorical columns.
-
-2. **Baseline Evaluation**
-   - Establish a reference model (e.g., Logistic Regression) to gauge linear separability and set baseline metrics.
-
-3. **Primary Model – Random Forest Classifier**
-   - Trains an ensemble of decision trees using bootstrap aggregation (**bagging**) to improve robustness.
-   - Handles both nonlinear feature interactions and mixed feature types efficiently.
-   - Evaluates model performance using:
-     - **Classification Report** – precision, recall, F1-score  
-     - **Confusion Matrix** – prediction distribution across classes  
-     - **ROC–AUC Curve** – discrimination ability between hazardous and non-hazardous NEOs  
-   - Extracts **feature importances** to identify the top orbital and physical attributes contributing to hazard prediction.
-
-4. **Overfitting & Model Validation**
-   - Compare **train vs test** metrics to detect overfitting.
-   - Plot **learning curves** (performance vs training size) and **validation curves** (accuracy vs model complexity).
-   - Evaluate **OOB (Out-of-Bag) score** as an internal cross-validation measure.
-
----
-
-#### **Core Implementation Snippet**
 
 ```python
-# Load dataset and verify target column
-df = pd.read_csv("../Dataset/neo_processed.csv")
-target_col = "hazardous_label" if "hazardous_label" in df.columns else "pha"
+df = pd.read_csv("Dataset/neo_processed.csv")
+possible_targets = ['hazardous_label', 'hazardous', 'is_hazardous', 'pha']
+target_col = next((t for t in possible_targets if t in df.columns), None)
+assert target_col is not None, "No target column found"
 X = df.drop(columns=[target_col])
 y = df[target_col]
-
-# Fill missing numeric values and encode categoricals
-num_cols = X.select_dtypes(include="number").columns
+num_cols = X.select_dtypes(include=['number']).columns
 X[num_cols] = X[num_cols].fillna(X[num_cols].median())
 X = pd.get_dummies(X, drop_first=True)
+```
 
-# Train-test split
+### NASA rule evaluation (benchmark only):
+
+Test MOID ≤ 0.05 AU and H ≤ 22.0 as a rule-based classifier to sanity-check labels. Do not use this feature for ML training.
+
+```python
+if {'moid','H'}.issubset(df.columns):
+    X['nasa_hazardous_rule'] = np.where((df['moid'] <= 0.05) & (df['H'] <= 22.0), 1, 0)
+    print("NASA rule metrics:")
+    print(" Acc:", accuracy_score(y, X['nasa_hazardous_rule']))
+    print(" Prec:", precision_score(y, X['nasa_hazardous_rule']))
+    print(" Rec:", recall_score(y, X['nasa_hazardous_rule']))
+    print(" F1 :", f1_score(y, X['nasa_hazardous_rule']))
+```
+
+### Leakage removal:
+Exclude direct or derived target-revealing columns before training.
+
+```python
+for col in ['moid', 'H', 'moid_ld', 'nasa_hazardous_rule', 'risk_score']:
+    if col in X.columns:
+        X = X.drop(columns=[col])
+```
+
+Baseline model and metrics:
+Stratified split (80/20), train `RandomForestClassifier`, and compute standard metrics.
+
+```python
 from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
+
 X_train, X_test, y_train, y_test = train_test_split(
     X, y, test_size=0.2, stratify=y, random_state=42
 )
-
-# Train Random Forest model
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import classification_report, confusion_matrix, roc_auc_score, roc_curve
-rf = RandomForestClassifier(n_estimators=200, random_state=42, n_jobs=-1)
+rf = RandomForestClassifier(random_state=42)
 rf.fit(X_train, y_train)
-
-# Evaluate
 y_pred = rf.predict(X_test)
-y_proba = rf.predict_proba(X_test)[:, 1]
+y_proba = rf.predict_proba(X_test)[:,1]
+print("Baseline RF:")
+print(" Acc:", accuracy_score(y_test, y_pred))
+print(" Prec:", precision_score(y_test, y_pred))
+print(" Rec:", recall_score(y_test, y_pred))
+print(" F1 :", f1_score(y_test, y_pred))
+print(" ROC AUC:", roc_auc_score(y_test, y_proba))
 ```
-**Output:**
 
-A trained Random Forest model `(random_forest_neo.pkl)` and corresponding feature metadata `(rf_features.json)` stored for integration into the dashboard pipeline.
-
----
-### Step 6 – Preliminary Results
-
-After implementing the end-to-end data pipeline—from cleaning through feature engineering and initial modeling—preliminary results were obtained using the Random Forest classifier.  
-This section summarizes early model outcomes, performance metrics, and general insights derived from the experiments.
-
----
-
-#### **6.1 Quantitative Evaluation**
-
-The dataset after preprocessing and feature engineering contained approximately **[39710]** samples.  
-The model was evaluated on an 80/20 stratified split to preserve class proportions.
+### Threshold tuning:
+Sweep thresholds (0.1–0.9) to maximize recall with a precision constraint (> 0.5). Select and report the optimal threshold.
 
 ```python
-print("Classification Report:")
-print(classification_report(y_test, y_pred))
-print("Confusion Matrix:\n", confusion_matrix(y_test, y_pred))
-print("ROC–AUC:", roc_auc_score(y_test, y_proba))
+best = {"thr":0.5, "acc":0, "prec":0, "rec":0, "f1":0}
+for thr in np.arange(0.1, 1.0, 0.1):
+    y_thr = (y_proba >= thr).astype(int)
+    acc = accuracy_score(y_test, y_thr)
+    prec = precision_score(y_test, y_thr, zero_division=0)
+    rec = recall_score(y_test, y_thr, zero_division=0)
+    f1 = f1_score(y_test, y_thr, zero_division=0)
+    if rec > best["rec"] and prec > 0.5:
+        best = {"thr":thr, "acc":acc, "prec":prec, "rec":rec, "f1":f1}
+print("Best threshold:", best)
 ```
 
-**Output:**
-
-| Metric | 0 | 1 |
-|---------|-------|------|
-| Precision | 0.99 | 1.00 |
-| Recall | 1.00 | 0.90 |
-| F1-Score | 1.00 | 0.94 |
-
-ROC Curve: 0.999
-
-**Interpretation:**
-- The model achieves strong accuracy and a balanced precision–recall trade-off.  
-- Slightly lower test performance suggests minimal overfitting.  
-- ROC–AUC of around 0.999 reflects strong separation between hazardous and non-hazardous objects.
-
----
-
-#### **6.2 Feature Importance**
-
-Top contributing features identified by the Random Forest model were extracted and ranked to understand their influence on predictions.
+### Class imbalance handling:
+Apply SMOTE to the training data, retrain Random Forest, and evaluate on the original test set.
 
 ```python
-importances = rf.feature_importances_
-feat_imp = sorted(zip(X.columns, importances), key=lambda x: x[1], reverse=True)[:15]
-for f, imp in feat_imp:
-    print(f"{f}: {imp:.4f}")
+from imblearn.over_sampling import SMOTE
+sm = SMOTE(random_state=42)
+X_train_sm, y_train_sm = sm.fit_resample(X_train, y_train)
+rf_sm = RandomForestClassifier(random_state=42)
+rf_sm.fit(X_train_sm, y_train_sm)
+y_pred_sm = rf_sm.predict(X_test)
+y_proba_sm = rf_sm.predict_proba(X_test)[:,1]
+print("SMOTE RF:")
+print(" Acc:", accuracy_score(y_test, y_pred_sm))
+print(" Prec:", precision_score(y_test, y_pred_sm, zero_division=0))
+print(" Rec:", recall_score(y_test, y_pred_sm, zero_division=0))
+print(" F1 :", f1_score(y_test, y_pred_sm, zero_division=0))
+print(" ROC AUC:", roc_auc_score(y_test, y_proba_sm))
 ```
 
-**Output:**
-
-| Rank | Feature | Importance |
-|------|----------|-------------|
-| 1 | `risk_score` | 0.1088 |
-| 2 | `moid` | 0.0914 |
-| 3 | `moid_ld` | 0.0891 |
-| 4 | `H` | 0.0722 |
-| 5 | `diameter` | 0.0685 |
-| 6 | `sigma_q` | 0.0291 |
-| 7 | `data_arc` | 0.0273 |
-| 8 | `sigma_e` | 0.0245 |
-| 9 | `q` | 0.0234 |
-| 10 | `n_obs_used` | 0.0217 |
-| 11 | `observation_span_years` | 0.0208 |
-| 12 | `sigma_tp` | 0.0208 |
-| 13 | `sigma_i` | 0.0205 |
-| 14 | `sigma_a` | 0.0199 |
-| 15 | `uncertainty_total` | 0.0198 |
-
-These results highlight the dominance of **risk_score** and **moid** in hazard classification.
+Refer to `Notebooks/Data_Modelling Final.ipynb` for full outputs and cpdes.
 
 ---
 
-#### **6.3 Overfitting Check**
+## 6. Results 
 
-Training and test accuracies were compared to confirm the model’s generalization performance.
+Overview:
+- Validated NASA rule (MOID ≤ 0.05 AU and H ≤ 22.0) as a baseline; excluded rule and direct derivatives from training to prevent leakage.
+- Trained Random Forest without leaky features; tuned threshold to prioritize recall; applied SMOTE to improve minority-class detection.
 
-```python
-y_train_pred = rf.predict(X_train)
-print("Train Accuracy:", accuracy_score(y_train, y_train_pred))
-print("Test Accuracy:", accuracy_score(y_test, y_pred))
+### Baseline Random Forest (no leakage features):
+```
+Accuracy: 0.9442
+Precision: 0.7679
+Recall: 0.1710
+F1-Score: 0.2797
+ROC AUC Score: 0.9599
 ```
 
-**Observation:**  
-The small gap between training (1.000) and testing (0.9932) accuracy indicates good generalization and limited overfitting.
+### Threshold tuning (best recall with precision > `0.5`):
+```
+Selected Threshold: 0.3
+Accuracy: 0.9425
+Precision: 0.5395
+Recall: 0.6243
+F1-Score: 0.5788
 
----
-
-#### **6.4 Learning Curve Analysis**
-
-The learning curve illustrates how model accuracy evolves with increasing training data size.
-
-```python
-from sklearn.model_selection import learning_curve
-train_sizes, train_scores, val_scores = learning_curve(
-    rf, X, y, cv=5, scoring="accuracy", n_jobs=-1
-)
-train_mean, val_mean = train_scores.mean(axis=1), val_scores.mean(axis=1)
-plt.plot(train_sizes, train_mean, 'o-', label="Training")
-plt.plot(train_sizes, val_mean, 'o-', label="Validation")
-plt.xlabel("Training Size")
-plt.ylabel("Accuracy")
-plt.legend()
-plt.title("Learning Curve – Random Forest")
-plt.show()
+Confusion Matrix at selected threshold:
+[[7171, 268],
+ [189, 314]]
 ```
 
-
-![Learning Curve](Figures\Learning_Curve.png)
-
-
-The plot typically shows some overfitting.
-
----
-
-#### **6.5 Out-of-Bag (OOB) Score**
-
-The Out-of-Bag score provides an internal validation estimate for Random Forest models.
-
-```python
-rf_oob = RandomForestClassifier(n_estimators=200, random_state=42, n_jobs=-1, oob_score=True)
-rf_oob.fit(X_train, y_train)
-print("OOB Score:", rf_oob.oob_score_)
+### SMOTE retrained RF (evaluated on original test set):
+```
+Accuracy: 0.9252
+Precision: 0.4455
+Recall: 0.7396
+F1-Score: 0.5561
+ROC AUC Score: 0.9566 
 ```
 
-**Sample Result:**  
-`OOB Score: 0.9940189504832059`
-
-This closely matches the external test accuracy, reinforcing the model’s reliability.
-
----
-
-#### **6.6 Visual Diagnostics**
-
-Visual diagnostics help assess model performance across different aspects of classification behavior.
-
-```python
-from sklearn.metrics import ConfusionMatrixDisplay, roc_curve
-
-# Confusion Matrix
-cm = confusion_matrix(y_test, y_pred)
-disp = ConfusionMatrixDisplay(confusion_matrix=cm)
-disp.plot(cmap="Blues")
-plt.title("Confusion Matrix – Random Forest")
-plt.show()
-
-# ROC Curve
-fpr, tpr, _ = roc_curve(y_test, y_proba)
-plt.plot(fpr, tpr, label="Random Forest (AUC = 0.88)")
-plt.xlabel("False Positive Rate")
-plt.ylabel("True Positive Rate")
-plt.title("ROC Curve – Hazard Classification")
-plt.legend()
-plt.show()
+NASA Rule (benchmark only):
+```
+Accuracy: 1.0
+Precision: 1.0
+Recall: 1.0
+F1-Score: 1.0
 ```
 
-![ROC Curve](Figures/ROC.png)
+Key takeaways:
+- Leakage removal (dropping `moid`, `H`, `moid_ld`, `risk_score`, `nasa_hazardous_rule`) produced realistic generalization, avoiding optimistic bias.
+- Threshold selection allows recall-focused operation for safety; adjust per mission tolerance for false positives.
+-`SMOTE` increases hazardous-class recall; monitor precision and consider threshold calibration post-SMOTE.
 
 ---
 
-**Summary:**
-- The **Random Forest** model performs robustly with balanced performance metrics.  
-- **Top features** align with scientific expectations related to orbital dynamics.  
-- **Low overfitting** and consistent validation scores confirm strong generalization.  
-- Visual diagnostics support the model’s accuracy and stability across evaluations.
-
----
-
-### Step 7 – Reproducibility and How to Run the Project
+## Step 7 – Reproducibility and How to Run the Project
 
 This section provides the sequence of steps to run the project from start to finish.  
 Each script or notebook corresponds to a distinct stage of the pipeline and should be executed in the following order.
@@ -607,8 +523,13 @@ Each script or notebook corresponds to a distinct stage of the pipeline and shou
    This notebook visualizes MOID distributions, velocity–size relationships, and feature correlations.
 
 5. **Model Training and Evaluation**  
-   Open `Data_Modelling.ipynb` and run all cells.  
+   Open `Data_Modelling Final.ipynb` and run all cells.  
    This trains Random Forest and outputs performance metrics and plots.
+
+## OR
+
+**Run Makefile**
+   Run make all in terminal 
 
 ---
 
@@ -621,7 +542,7 @@ Each script or notebook corresponds to a distinct stage of the pipeline and shou
 | `neo_processed.csv` | Dataset with engineered features |
 | `Figures/` | Folder containing visualization outputs |
 | `Models/` | Stored model metrics for reuse |
-| `README.md` | Midterm report documenting workflow and findings |
+| `README.md` | Final report documenting workflow and findings |
 
 ---
 
