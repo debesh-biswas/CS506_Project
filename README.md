@@ -8,7 +8,7 @@
 
 **Instructor:** Lance Galletti
 
-**Youtube Link:** [Presentation](https://youtu.be/GasLmU-gFWg)
+**Youtube Link:** [Presentation](https://youtu.be/tw8Xc5N7rko)
 
 ---
 
